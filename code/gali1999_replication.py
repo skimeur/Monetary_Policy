@@ -35,7 +35,7 @@ from io import StringIO
 import numpy as np
 import pandas as pd
 import requests
-from scipy.optimize import minimize
+from scipy.optimize import minimize, minimize_scalar
 from scipy.stats import chi2
 
 # place yourself in the right directory (repo convention)
@@ -129,13 +129,15 @@ def make_variables(raw, deflator='GDP'):
     return df.sort_index()
 
 
-def assemble(df, start, end):
+def assemble(df, start, end, nlags=None):
     """
     Return (reg, zcols) restricted to [start, end] with complete cases.
     Inflation and the labor share are demeaned over the window (the model's
     zero-inflation steady state), so the intercept in z_t is innocuous and
-    beta is not mechanically forced to one.
+    beta is not mechanically forced to one. `nlags` = instrument lags per
+    variable (defaults to the module-level NLAGS).
     """
+    nlags = NLAGS if nlags is None else nlags
     d = df.copy()
     win = d.loc[start:end]
     d['pi'] = d['pi'] - win['pi'].mean()
@@ -145,7 +147,7 @@ def assemble(df, start, end):
             'piF': d['pi'].shift(-1), 'piL': d['pi'].shift(1)}
     zcols = []
     for v in INSTR_VARS:
-        for L in range(1, NLAGS + 1):
+        for L in range(1, nlags + 1):
             name = f'{v}_l{L}'
             cols[name] = d[v].shift(L)
             zcols.append(name)
@@ -254,6 +256,54 @@ def delta(fn, psi, V):
     G = num_jac(fn, psi)
     cov = G @ V @ G.T
     return val, np.sqrt(np.diag(cov))
+
+
+def ar_confset_lambda(a, Z, grid=None, level=0.95, q=HAC_LAGS):
+    """
+    Weak-instrument-robust (Anderson-Rubin / Stock-Wright S) confidence set for
+    the marginal-cost slope lambda in  pi = lambda*s + beta*E[pi_{t+1}].
+
+    For each candidate lambda0 the nuisance beta is profiled out by minimizing
+    the continuously-updated S-statistic
+        S(lambda0, beta) = T * gbar' Shat(lambda0,beta)^{-1} gbar,
+    with the HAC weight Shat recomputed at each point. lambda0 is retained iff
+    min_beta S <= chi2(L) critical value (projection method). This set is valid
+    regardless of identification strength, unlike Wald/delta-method intervals.
+    """
+    pi, s, piF = a['pi'], a['s'], a['piF']
+    T, L = Z.shape
+    crit = chi2.ppf(level, L)
+    if grid is None:
+        grid = np.round(np.linspace(-0.30, 0.40, 281), 4)
+
+    def s_min(lam0):
+        def s_of_beta(be):
+            u = pi - lam0 * s - be * piF
+            gbar = Z.T @ u / T
+            Si = safe_inv(newey_west(Z * u[:, None], q))
+            return T * gbar @ Si @ gbar
+        return minimize_scalar(s_of_beta, bounds=(0.5, 1.05),
+                               method='bounded').fun
+
+    S = np.array([s_min(l) for l in grid])
+    return {'grid': grid, 'S': S, 'in': S <= crit, 'crit': crit, 'L': L}
+
+
+def ar_summary(ar):
+    """Summarize an AR confidence set as an interval / unbounded / empty."""
+    grid, inset = ar['grid'], ar['in']
+    if not inset.any():
+        return "empty (rejected at all lambda on the grid)"
+    idx = np.where(inset)[0]
+    lo, hi = grid[idx.min()], grid[idx.max()]
+    txt = f"[{lo:+.3f}, {hi:+.3f}]"
+    if inset[0]:
+        txt += " open-below"
+    if inset[-1]:
+        txt += " open-above"
+    if idx.max() - idx.min() + 1 != len(idx):
+        txt += " [non-contiguous]"
+    return txt
 
 
 # ----------------------------------------------------------------------
@@ -425,6 +475,10 @@ def report_sample(name, results):
     print(f"  lambda = {fmt(rf['lambda'])}   beta = {fmt(rf['beta'])}   "
           f"J({rf['dof']}) = {rf['J']:.2f}, p = {rf['pJ']:.2f}")
     print("  (GG report lambda = 0.023 (0.012), beta = 0.942 (0.045))")
+    if 'ar' in results:
+        ar = results['ar']
+        print(f"  Anderson-Rubin 95% set for lambda (weak-IV robust, "
+              f"L={ar['L']} instr): {ar_summary(ar)}")
 
     # Table 1
     cols = ['theta', 'beta', 'lambda', 'J(p)']
@@ -586,15 +640,16 @@ def report_comparison(orig, ext, ext_lab):
 # ----------------------------------------------------------------------
 # Driver
 # ----------------------------------------------------------------------
-def estimate_sample(raw, start, end):
+def estimate_sample(raw, start, end, nlags=None):
     out = {'table1': {}, 'table2': {}}
     nobs = span = None
     for defl in ('GDP', 'NFB'):
         df = make_variables(raw, deflator=defl)
-        reg, zcols = assemble(df, start, end)
+        reg, zcols = assemble(df, start, end, nlags)
         a, Z = make_arrays(reg, zcols)
         if defl == 'GDP':
             out['reduced_form'] = run_reduced_form(a, Z)
+            out['ar'] = ar_confset_lambda(a, Z)
             nobs = len(reg)
             span = f"{reg.index[0]}-{reg.index[-1]}"
         out['table1'][defl] = run_table1(a, Z)
@@ -610,6 +665,8 @@ def main():
                     default='both')
     ap.add_argument('--refresh', action='store_true',
                     help="re-download FRED series (ignore cache)")
+    ap.add_argument('--nlags', type=int, default=NLAGS,
+                    help="instrument lags per variable (default 4)")
     args = ap.parse_args()
 
     print("Downloading / loading FRED data ...")
@@ -625,7 +682,7 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     collected = {}
     for name, start, end in samples:
-        results = estimate_sample(raw, start, end)
+        results = estimate_sample(raw, start, end, nlags=args.nlags)
         report_sample(name, results)
         tag = 'orig' if 'original' in name else 'ext'
         collected[tag] = results
