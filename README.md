@@ -4,10 +4,11 @@
 ![Topic: Monetary Economics](https://img.shields.io/badge/topic-monetary%20economics-brightgreen)
 ![Type: Paper Replication](https://img.shields.io/badge/type-paper%20replication-orange)
 
-Reproducible **Python replications** of landmark papers in **monetary economics**.
-Each replication reproduces the original paper end to end — its **theory** (the model
-and estimating equations), its **data** (downloaded from public sources), and its
-**empirical results** — in a single runnable script. By Eric Vansteenberghe.
+Reproducible **Python replications** of landmark papers in **monetary economics** and
+the **New Keynesian Phillips Curve**. Each replication reproduces the original paper
+end to end — its **theory** (the model and estimating equations), its **data**
+(downloaded from public sources), and its **empirical results** — in a single runnable
+script, with modern **identification-robust** inference. By Eric Vansteenberghe.
 
 > ⚠️ Independent replications for study purposes. Where modern or annual
 > cross-country data are used in place of the original samples, results approximate
@@ -18,8 +19,9 @@ and estimating equations), its **data** (downloaded from public sources), and it
 | Original paper | Method | Python replication |
 |----------------|--------|--------------------|
 | **Sims (1980)** — *Macroeconomics and Reality* | VAR / SVAR | [`code/sims1980_var.py`](code/sims1980_var.py) |
-| **Galí & Gertler (1999)** — *Inflation Dynamics: A Structural Econometric Analysis* | New Keynesian Phillips Curve (GMM) | [`code/gali1999_replication.py`](code/gali1999_replication.py) |
-| **Galí, Gertler & López-Salido (2001)** — *European Inflation Dynamics* | New Keynesian Phillips Curve (GMM), euro area | [`code/gali1999_euro_replication.py`](code/gali1999_euro_replication.py) |
+| **Galí & Gertler (1999)** — *Inflation Dynamics: A Structural Econometric Analysis* | NKPC, GMM | [`code/gali1999_replication.py`](code/gali1999_replication.py) |
+| **Galí, Gertler & López-Salido (2001)** — *European Inflation Dynamics* | NKPC, GMM (euro area) | [`code/gali1999_euro_replication.py`](code/gali1999_euro_replication.py) |
+| **Barnichon & Mesters (2020)** — *Identifying Modern Macro Equations with Old Shocks* | NKPC, shock-IV + Anderson–Rubin | [`code/barnichon2020_nkpc.py`](code/barnichon2020_nkpc.py), [`code/barnichon2020_euro_nkpc.py`](code/barnichon2020_euro_nkpc.py) |
 
 ---
 
@@ -142,7 +144,61 @@ Stock–Wright *S*-statistic and the Kleibergen *K*-statistic, evaluated on the
 may be unbounded or empty) rather than point estimates ± standard errors; keep the
 instrument set parsimonious to limit many-instrument bias. See **Kleibergen &
 Mavroeidis (2009)** and **Mavroeidis, Plagborg-Møller & Stock (2014)** in the
-References.
+References — and the shock-IV remedy of **Barnichon & Mesters (2020)** below.
+
+---
+
+## Barnichon & Mesters (2020) — Identifying Modern Macro Equations with Old Shocks
+
+> **Original paper.** Régis Barnichon and Geert Mesters (2020), "Identifying Modern
+> Macro Equations with Old Shocks," *Quarterly Journal of Economics* **135**(4),
+> 2255–2298. DOI: [10.1093/qje/qjaa022](https://doi.org/10.1093/qje/qjaa022)
+
+**Python replication →** [`code/barnichon2020_nkpc.py`](code/barnichon2020_nkpc.py)
+(US, Table I) · [`code/barnichon2020_euro_nkpc.py`](code/barnichon2020_euro_nkpc.py)
+(euro-area application)
+
+Identifies the New Keynesian Phillips Curve with a **sequence of identified monetary
+shocks** as instruments — an IV regression "in impulse-response space" — using
+weak-instrument-robust **Anderson–Rubin** inference. The headline: conventional
+lagged-instrument methods substantially *underestimate* the slope of the Phillips
+curve.
+
+- **📐 Theory** — the hybrid NKPC instrumented by a sequence of structural (monetary)
+  shocks; the exogeneity/relevance conditions; the regression "in impulse-response
+  space"; the Almon / quadratic-polynomial reduction to three instruments; the
+  **subset Anderson–Rubin** (min-eigenvalue) statistic and the continuously-updated
+  estimator under γ_f + γ_b = 1.
+- **📊 Data** — *US:* the authors' QJE replication file (inflation, output /
+  unemployment gap, and the **Romer–Romer (2004)** narrative monetary shocks).
+  *Euro area:* GDP-deflator inflation and the labour share (FRED + Eurostat) with the
+  **Altavilla et al. (2019)** EA-MPD **pure-monetary shock** (the Jarociński–Karadi
+  information-purged component).
+- **🐍 Code** — a faithful Python port of the authors' MATLAB reproducing **Table I**
+  exactly (point estimates and Anderson–Rubin confidence intervals), plus a
+  euro-area application contrasting shock-IV against lagged-instrument IV on the same
+  sample.
+
+```bash
+python code/barnichon2020_nkpc.py        # US, reproduces Table I (needs the QJE replication data)
+python code/barnichon2020_euro_nkpc.py   # euro-area shock-IV vs lagged-IV (needs the EA-MPD shock series)
+```
+
+**Findings.** For the **US** (1969–2007), monetary-shock instruments deliver a
+*bounded* Anderson–Rubin confidence set for the Phillips-curve slope — positive,
+significant, and larger than conventional lagged-instrument estimates. For the
+**euro area** (2004–2024), the same external shocks move real marginal cost but
+barely move inflation (first-stage *F* ≈ 16 for the labour share vs. ≈ 1 for
+inflation), so the slope is *not* identified (unbounded AR set), while lagged
+instruments return a spurious wrong-signed estimate — the flat, anchored euro-area
+Phillips curve appearing as an identification failure rather than a small
+coefficient.
+
+> **Data note.** The US script reads `Data_QJE.xlsx` from the authors' QJE
+> replication package (git-ignored here — download it from the
+> [QJE replication materials](https://doi.org/10.1093/qje/qjaa022)). The euro-area
+> script needs a quarterly EA monetary-shock series built from the
+> [EA-MPD](https://www.ecb.europa.eu/) (Altavilla et al. 2019).
 
 ---
 
@@ -153,12 +209,15 @@ References.
 ├── README.md
 ├── LICENSE
 └── code/
-    ├── sims1980_var.py            # Sims (1980) VAR / SVAR (CLI)
-    ├── gali1999_replication.py    # Galí & Gertler (1999) NKPC (GMM, US)
-    └── gali1999_euro_replication.py  # Galí–Gertler–López-Salido (2001) NKPC (GMM, euro area)
+    ├── sims1980_var.py               # Sims (1980) VAR / SVAR (CLI)
+    ├── gali1999_replication.py       # Galí & Gertler (1999) NKPC (GMM, US)
+    ├── gali1999_euro_replication.py  # Galí–Gertler–López-Salido (2001) NKPC (GMM, euro area)
+    ├── barnichon2020_nkpc.py         # Barnichon & Mesters (2020) shock-IV NKPC (US, Table I)
+    └── barnichon2020_euro_nkpc.py    # Barnichon–Mesters method applied to the euro area
 ```
 
-`data/` (downloaded datasets and caches) is created on first run and is git-ignored.
+`data/` (downloaded datasets and caches) and third-party replication packages are
+created on first run / supplied by the user and are git-ignored.
 
 ---
 
@@ -171,7 +230,11 @@ References.
   and euro-area aggregates `CLVMNACSCAB1GQEA19`, `CPMNACSCAB1GQEA19`,
   `IRLTLT01EZM156N`, `IR3TIB01EZQ156N`.
 - **Eurostat** — euro-area national accounts (`namq_10_gdp`, `namq_10_a10_e`) for the
-  labour income share (Galí–Gertler–López-Salido replication).
+  labour income share.
+- **Romer & Romer (2004) narrative monetary shocks** — from the Barnichon–Mesters
+  QJE replication package (US shock-IV).
+- **ECB Euro-Area Monetary Policy Database (EA-MPD)**, Altavilla et al. (2019) — the
+  Jarociński–Karadi-purged **pure-monetary shock** (euro-area shock-IV).
 
 ---
 
@@ -180,10 +243,10 @@ References.
 Python 3.10+.
 
 ```bash
-pip install numpy pandas scipy statsmodels requests matplotlib
+pip install numpy pandas scipy statsmodels requests matplotlib openpyxl
 ```
 
-> **Working-directory note.** The `gali1999_*` scripts set a local working directory
+> **Working-directory note.** The replication scripts set a local working directory
 > via `os.chdir(...)` near the top; edit it to your own checkout (or remove it and run
 > from the repo root) before executing.
 
@@ -201,6 +264,17 @@ pip install numpy pandas scipy statsmodels requests matplotlib
   [RePEc](https://ideas.repec.org/a/eee/eecrev/v45y2001i7p1237-1270.html) ·
   NBER w8218 DOI: [10.3386/w8218](https://doi.org/10.3386/w8218). Erratum: *EER*
   47(4), 759–760 (2003).
+- **Barnichon, Régis & Geert Mesters** (2020). "Identifying modern macro equations
+  with old shocks." *Quarterly Journal of Economics* 135(4), 2255–2298.
+  DOI: [10.1093/qje/qjaa022](https://doi.org/10.1093/qje/qjaa022)
+- **Romer, Christina D. & David H. Romer** (2004). "A new measure of monetary shocks:
+  Derivation and implications." *American Economic Review* 94(4), 1055–1084.
+- **Altavilla, Carlo, Luca Brugnolini, Refet S. Gürkaynak, Roberto Motto & Giuseppe
+  Ragusa** (2019). "Measuring euro area monetary policy." *Journal of Monetary
+  Economics* 108, 162–179. DOI: [10.1016/j.jmoneco.2019.08.016](https://doi.org/10.1016/j.jmoneco.2019.08.016)
+- **Jarociński, Marek & Peter Karadi** (2020). "Deconstructing monetary policy
+  surprises — the role of information shocks." *American Economic Journal:
+  Macroeconomics* 12(2), 1–43. DOI: [10.1257/mac.20180090](https://doi.org/10.1257/mac.20180090)
 - **Kleibergen, Frank & Sophocles Mavroeidis** (2009). "Weak instrument robust tests
   in GMM and the new Keynesian Phillips curve." *Journal of Business & Economic
   Statistics* 27(3), 293–311.
@@ -223,6 +297,8 @@ in the References.
 SVAR · structural VAR · impulse response · FEVD · New Keynesian Phillips curve ·
 NKPC · hybrid Phillips curve · GMM · two-step GMM · continuously-updated GMM · CUE ·
 Newey–West HAC · weak identification · Anderson–Rubin · Stock–Wright S-statistic ·
-identification-robust inference · Kleibergen–Mavroeidis · Calvo pricing · inflation
+identification-robust inference · Kleibergen–Mavroeidis · shock-IV · external
+instruments · monetary policy shocks · impulse-response space · Romer–Romer ·
+high-frequency identification · EA-MPD · Jarociński–Karadi · Calvo pricing · inflation
 dynamics · marginal cost · labor share · euro area · Galí–Gertler ·
-Galí–Gertler–López-Salido · FRED · Eurostat · JST Macrohistory.</sub>
+Galí–Gertler–López-Salido · Barnichon–Mesters · FRED · Eurostat · JST Macrohistory.</sub>
