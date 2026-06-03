@@ -1,4 +1,4 @@
-# Monetary Policy — Paper Replications in Python
+# Monetary Policy & the New Keynesian Phillips Curve — Paper Replications in Python
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)
 ![Topic: Monetary Economics](https://img.shields.io/badge/topic-monetary%20economics-brightgreen)
@@ -22,6 +22,17 @@ script, with modern **identification-robust** inference. By Eric Vansteenberghe.
 | **Galí & Gertler (1999)** — *Inflation Dynamics: A Structural Econometric Analysis* | NKPC, GMM | [`code/gali1999_replication.py`](code/gali1999_replication.py) |
 | **Galí, Gertler & López-Salido (2001)** — *European Inflation Dynamics* | NKPC, GMM (euro area) | [`code/gali1999_euro_replication.py`](code/gali1999_euro_replication.py) |
 | **Barnichon & Mesters (2020)** — *Identifying Modern Macro Equations with Old Shocks* | NKPC, shock-IV + Anderson–Rubin | [`code/barnichon2020_nkpc.py`](code/barnichon2020_nkpc.py), [`code/barnichon2020_euro_nkpc.py`](code/barnichon2020_euro_nkpc.py) |
+
+**The through-line.** The four replications tell one story — about the **slope of the
+New Keynesian Phillips curve** and how hard it is to identify. Galí–Gertler (1999) and
+its euro-area sequel GGL (2001) estimate the NKPC by **GMM with lagged instruments**; on
+current-vintage data those moment conditions turn out to be **weakly identified**, so the
+textbook standard errors are illusory and the Anderson–Rubin set for the slope is
+*unbounded*. Barnichon–Mesters (2020) supply the remedy — identify the curve with a
+**sequence of external monetary shocks** — recovering a bounded, *larger* slope for the
+US. The same shock-IV applied to the **euro area** delivers the opposite verdict:
+monetary shocks move marginal cost but barely move inflation, so the flat post-EMU curve
+reappears as an *identification failure* rather than a small coefficient.
 
 ---
 
@@ -172,8 +183,9 @@ curve.
 - **📊 Data** — *US:* the authors' QJE replication file (inflation, output /
   unemployment gap, and the **Romer–Romer (2004)** narrative monetary shocks).
   *Euro area:* GDP-deflator inflation and the labour share (FRED + Eurostat) with the
-  **Altavilla et al. (2019)** EA-MPD **pure-monetary shock** (the Jarociński–Karadi
-  information-purged component).
+  **Jarociński–Karadi pure-monetary shock** (`MP_median`, median-rotation
+  identification), taken directly from M. Jarociński's
+  [`jkshocks_update_ecb`](https://github.com/marekjarocinski/jkshocks_update_ecb) repository.
 - **🐍 Code** — a faithful Python port of the authors' MATLAB reproducing **Table I**
   exactly (point estimates and Anderson–Rubin confidence intervals), plus a
   euro-area application contrasting shock-IV against lagged-instrument IV on the same
@@ -181,14 +193,14 @@ curve.
 
 ```bash
 python code/barnichon2020_nkpc.py        # US, reproduces Table I (needs the QJE replication data)
-python code/barnichon2020_euro_nkpc.py   # euro-area shock-IV vs lagged-IV (needs the EA-MPD shock series)
+python code/barnichon2020_euro_nkpc.py   # euro-area shock-IV vs lagged-IV (needs the JK shock series)
 ```
 
 **Findings.** For the **US** (1969–2007), monetary-shock instruments deliver a
 *bounded* Anderson–Rubin confidence set for the Phillips-curve slope — positive,
 significant, and larger than conventional lagged-instrument estimates. For the
 **euro area** (2004–2024), the same external shocks move real marginal cost but
-barely move inflation (first-stage *F* ≈ 16 for the labour share vs. ≈ 1 for
+barely move inflation (first-stage *F* ≈ 16 for the labour share vs. ≈ 4 for
 inflation), so the slope is *not* identified (unbounded AR set), while lagged
 instruments return a spurious wrong-signed estimate — the flat, anchored euro-area
 Phillips curve appearing as an identification failure rather than a small
@@ -197,8 +209,22 @@ coefficient.
 > **Data note.** The US script reads `Data_QJE.xlsx` from the authors' QJE
 > replication package (git-ignored here — download it from the
 > [QJE replication materials](https://doi.org/10.1093/qje/qjaa022)). The euro-area
-> script needs a quarterly EA monetary-shock series built from the
-> [EA-MPD](https://www.ecb.europa.eu/) (Altavilla et al. 2019).
+> script needs the monthly Jarociński–Karadi euro-area shock series
+> `shocks_ecb_mpd_me_m.csv`, taken directly from M. Jarociński's
+> [`jkshocks_update_ecb`](https://github.com/marekjarocinski/jkshocks_update_ecb)
+> repository (git-ignored here).
+
+---
+
+## Results at a glance
+
+| Replication | What it reproduces | Headline result |
+|---|---|---|
+| **Sims (1980)**, US | reduced-form VAR + recursive SVAR; IRFs, FEVD, Granger tests | money–output–price dynamics; conclusions hinge on the recursive ordering (ordering-robustness check included) |
+| **Galí–Gertler (1999)**, US | NKPC by two-step GMM; structural θ, β, ω | forward-looking pricing dominates (γ_f > γ_b); marginal-cost slope **weakly identified** on current-vintage data |
+| **GGL (2001)**, euro area | the same NKPC/GMM on the euro-area labour share | positive slope, high stickiness (θ ≈ 0.83), near-purely-forward-looking; Anderson–Rubin set **unbounded** |
+| **Barnichon–Mesters (2020)**, US | shock-IV NKPC — **reproduces Table I exactly** | **bounded** AR set; slope *larger* than the lagged-instrument estimates that underestimate it |
+| **Barnichon–Mesters**, euro area | Jarociński–Karadi shock-IV vs. lagged-IV (one sample) | shocks move marginal cost (*F* ≈ 16) but not inflation (*F* ≈ 4) → slope **unidentified**; the flat euro-area curve |
 
 ---
 
@@ -233,8 +259,10 @@ created on first run / supplied by the user and are git-ignored.
   labour income share.
 - **Romer & Romer (2004) narrative monetary shocks** — from the Barnichon–Mesters
   QJE replication package (US shock-IV).
-- **ECB Euro-Area Monetary Policy Database (EA-MPD)**, Altavilla et al. (2019) — the
-  Jarociński–Karadi-purged **pure-monetary shock** (euro-area shock-IV).
+- **Jarociński–Karadi euro-area monetary-policy shocks** — the `MP_median`
+  (median-rotation) **pure-monetary shock**, from M. Jarociński's
+  [`jkshocks_update_ecb`](https://github.com/marekjarocinski/jkshocks_update_ecb)
+  repository (euro-area shock-IV).
 
 ---
 
@@ -249,6 +277,30 @@ pip install numpy pandas scipy statsmodels requests matplotlib openpyxl
 > **Working-directory note.** The replication scripts set a local working directory
 > via `os.chdir(...)` near the top; edit it to your own checkout (or remove it and run
 > from the repo root) before executing.
+
+---
+
+## Methods & techniques
+
+Econometrics implemented from scratch in NumPy/SciPy, cross-checked against
+`statsmodels` / `linearmodels` where an independent implementation exists:
+
+- **Vector autoregression (VAR)** and **recursive structural VAR (SVAR)** — Cholesky
+  identification, orthogonalized **impulse–response functions**, **forecast-error
+  variance decomposition (FEVD)**, Granger / block-exogeneity tests, information-criterion
+  lag selection, stability and residual-whiteness diagnostics.
+- **GMM estimation of the NKPC** — two-step efficient GMM, the **continuously-updated
+  estimator (CUE)**, **Newey–West HAC** weighting, both moment normalizations, and
+  structural recovery of Calvo price stickiness θ, the discount factor β, and the
+  backward-looking share ω.
+- **Weak-identification-robust inference** — **Anderson–Rubin / Stock–Wright *S*** and
+  **subset-AR** (min-eigenvalue) confidence sets, the **Kleibergen *K*** statistic, and
+  reporting confidence **sets** (possibly unbounded or empty) instead of Wald standard
+  errors; instrument-count robustness to limit many-instrument bias.
+- **Shock-IV / external-instrument identification** — IV "in impulse-response space," a
+  **sequence of identified monetary shocks** (Romer–Romer; Jarociński–Karadi) as
+  instruments, **Almon / quadratic-polynomial** instrument reduction, a
+  **quadratic-spectral HAC** kernel, and first-stage relevance diagnostics.
 
 ---
 
@@ -269,12 +321,11 @@ pip install numpy pandas scipy statsmodels requests matplotlib openpyxl
   DOI: [10.1093/qje/qjaa022](https://doi.org/10.1093/qje/qjaa022)
 - **Romer, Christina D. & David H. Romer** (2004). "A new measure of monetary shocks:
   Derivation and implications." *American Economic Review* 94(4), 1055–1084.
-- **Altavilla, Carlo, Luca Brugnolini, Refet S. Gürkaynak, Roberto Motto & Giuseppe
-  Ragusa** (2019). "Measuring euro area monetary policy." *Journal of Monetary
-  Economics* 108, 162–179. DOI: [10.1016/j.jmoneco.2019.08.016](https://doi.org/10.1016/j.jmoneco.2019.08.016)
 - **Jarociński, Marek & Peter Karadi** (2020). "Deconstructing monetary policy
   surprises — the role of information shocks." *American Economic Journal:
-  Macroeconomics* 12(2), 1–43. DOI: [10.1257/mac.20180090](https://doi.org/10.1257/mac.20180090)
+  Macroeconomics* 12(2), 1–43. DOI: [10.1257/mac.20180090](https://doi.org/10.1257/mac.20180090).
+  Euro-area shock series: M. Jarociński,
+  [`jkshocks_update_ecb`](https://github.com/marekjarocinski/jkshocks_update_ecb).
 - **Kleibergen, Frank & Sophocles Mavroeidis** (2009). "Weak instrument robust tests
   in GMM and the new Keynesian Phillips curve." *Journal of Business & Economic
   Statistics* 27(3), 293–311.

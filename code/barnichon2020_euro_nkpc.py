@@ -12,9 +12,11 @@ pi^F, pi_{t-1} -> 4-quarter-lagged average pi^L). On the common euro-area shock
 window we estimate it two ways that differ ONLY in the instruments:
 
   (1) SHOCK-IV (Barnichon-Mesters): a sequence of euro-area PURE MONETARY shocks
-      -- MP_pm, the Jarocinski-Karadi-purged component of the Altavilla et al.
-      (2019) EA-MPD -- and its H=20 lags, compressed to a quadratic (Almon)
-      polynomial (three instruments).
+      -- MP_median, Jarocinski & Karadi's median-rotation (structural) shock,
+      taken unmodified from the authors' own repository
+      github.com/marekjarocinski/jkshocks_update_ecb (monthly, 1999-2025) --
+      and its H=20 lags, compressed to a quadratic (Almon) polynomial (three
+      instruments).
   (2) LAGGED-IV control: four lags each of inflation and the labour share (the
       traditional Galí-Gertler / GGL instrument class), on the SAME sample.
 
@@ -40,19 +42,20 @@ import gali1999_euro_replication as ea     # euro-area data layer (pi, labour sh
 import barnichon2020_nkpc as bm            # subset_AR, quad_spectral_kernel, GRID
 
 OUT_DIR = 'output'
-SHOCK_CSV = 'data/shocks_ecb_mpd_me_m.csv'
+SHOCK_CSV = 'data/shocks_ecb_mpd_me_m.csv'  # JK authors' series: github.com/marekjarocinski/jkshocks_update_ecb
 H = 20                                      # instrument lags (Barnichon-Mesters: 20)
 GRID = bm.GRID
 
-# context: published / our prior euro-area lambda on the labour share
-GGL_PUB_LAMBDA = 0.018        # GGL (2001), Table 1, xi=1, method (1)
-GGGMM_EA_LAMBDA = 0.038       # our gali1999_euro_replication (1995-2025), AR set unbounded
+# context: published / our prior euro-area HYBRID estimates on the labour share
+GGL_PUB = {'gamma_b': 0.025, 'gamma_f': 0.877, 'lambda': 0.018}   # GGL (2001) Table 2, xi=1, (1)
+GGGMM_EA = {'gamma_b': 0.001, 'gamma_f': 0.989, 'lambda': 0.038}  # our gali1999_euro hybrid (1); AR unbounded
+SHOCK_COL = 'MP_median'       # Jarocinski-Karadi (2020) pure-monetary shock (median rotation)
 
 
 def load_mp_quarterly():
     sh = pd.read_csv(SHOCK_CSV)
     q = pd.PeriodIndex(pd.to_datetime(dict(year=sh.year, month=sh.month, day=1)), freq='Q')
-    return sh.assign(q=q).groupby('q')['MP_pm'].sum()
+    return sh.assign(q=q).groupby('q')[SHOCK_COL].sum()
 
 
 def build_data():
@@ -144,11 +147,12 @@ def report(res):
     print(f"EURO-AREA NKPC on the labour share  |  sample {res['span']}  "
           f"(T={res['T']}, HAC lag={res['max_lag']})")
     print("=" * 78)
-    print(f"\nContext (labour-share slope lambda):")
-    print(f"  GGL (2001) published (xi=1)        lambda = {GGL_PUB_LAMBDA:+.3f}")
-    print(f"  our GG/GMM EA 1995-2025 (lagged-IV) lambda = {GGGMM_EA_LAMBDA:+.3f}  "
-          f"[AR set unbounded]")
-    for tag, name in [('shock', 'SHOCK-IV  (MP_pm, Barnichon-Mesters)'),
+    print(f"\nContext (hybrid NKPC on the labour share):")
+    print(f"  GGL (2001) published (xi=1)  gb={GGL_PUB['gamma_b']:+.3f} "
+          f"gf={GGL_PUB['gamma_f']:+.3f} lam={GGL_PUB['lambda']:+.3f}")
+    print(f"  our GG/GMM EA 1995-2025      gb={GGGMM_EA['gamma_b']:+.3f} "
+          f"gf={GGGMM_EA['gamma_f']:+.3f} lam={GGGMM_EA['lambda']:+.3f}  [AR unbounded]")
+    for tag, name in [('shock', f'SHOCK-IV  ({SHOCK_COL}, Jarocinski-Karadi shock)'),
                       ('lagged', 'LAGGED-IV (4 lags of pi, s) -- control')]:
         r = res[tag]
         gb, gf, lam = r['delta']
@@ -163,9 +167,10 @@ def report(res):
 
 def latex_table(res):
     rows = [
-        ('GGL (2001) published', '--', '--', f"{GGL_PUB_LAMBDA:.3f}", 'lagged (GMM)', '--'),
-        ('GG/GMM EA 1995--2025', '--', '--', f"{GGGMM_EA_LAMBDA:.3f}", 'lagged (GMM)',
-         'unbounded'),
+        ('GGL (2001) published', f"{GGL_PUB['gamma_b']:.3f}", f"{GGL_PUB['gamma_f']:.3f}",
+         f"{GGL_PUB['lambda']:.3f}", 'lagged (GMM)', '--'),
+        ('GG/GMM EA 1995--2025', f"{GGGMM_EA['gamma_b']:.3f}", f"{GGGMM_EA['gamma_f']:.3f}",
+         f"{GGGMM_EA['lambda']:.3f}", 'lagged (GMM)', 'unbounded'),
     ]
     lines = [r"\begin{tabular}{lcccll}", r"\toprule",
              r"method & $\gamma_b$ & $\gamma_f$ & $\lambda$ & instruments & "
@@ -176,7 +181,7 @@ def latex_table(res):
                       ('lagged', 'lagged-IV (same sample)')]:
         r = res[tag]
         gb, gf, lam = r['delta']
-        instr = 'EA monetary shock' if tag == 'shock' else 'lags of $\\pi,s$'
+        instr = 'JK monetary shock' if tag == 'shock' else 'lags of $\\pi,s$'
         lines.append(f"{name} & {gb:.3f} & {gf:.3f} & {lam:.3f} & {instr} & "
                      f"{bounded(r['ci']['lambda']).replace('UNBOUNDED','unbounded')} \\\\")
     lines += [r"\bottomrule", r"\end{tabular}"]
